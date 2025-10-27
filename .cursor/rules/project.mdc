@@ -1,0 +1,27 @@
+---
+alwaysApply: true
+---
+
+# 项目规范
+
+## 后端选型
+
+- Next.js 全栈应用
+- 使用 langchain 作为 LLM Agent 框架
+- 使用 Prisma 作为 ORM
+
+## 前端选型
+
+- Next.js 全栈应用
+- 使用 Tailwind CSS 作为样式框架
+- 使用 Lucide 作为图标库
+- 使用 Shadcn UI 作为组件库
+- 使用 React 作为前端框架
+- 使用 TypeScript 作为编程语言
+- 使用 ESLint 作为代码规范工具
+- 使用 Prettier 作为代码格式化工具
+- 使用 Husky 作为代码规范工具
+
+## 任务规范
+
+***在没有明确要求的时候，请不要生成总结文本，不要更新 README.md 文件或者生成其他说明文件***
