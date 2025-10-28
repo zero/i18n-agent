@@ -87,8 +87,8 @@ export default function TranslationsPage() {
       if (data.success) {
         setTranslations(data.data.translations);
       }
-    } catch (error) {
-      console.error('Failed to fetch translations:', error);
+    } catch (err) {
+      console.error('Failed to fetch translations:', err);
     } finally {
       setLoading(false);
     }
@@ -130,7 +130,8 @@ export default function TranslationsPage() {
       } else {
         alert(data.error);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Delete error:', err);
       alert('删除失败');
     }
   };
@@ -158,7 +159,8 @@ export default function TranslationsPage() {
       } else {
         alert(data.error);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Submit error:', err);
       alert('操作失败');
     }
   };

@@ -22,6 +22,12 @@ export default function AdminLayout({
           </div>
           <nav className="flex items-center space-x-6 text-sm font-medium">
             <Link
+              href="/admin/chat"
+              className="hover:text-foreground/80 text-foreground transition-colors"
+            >
+              AI 助手
+            </Link>
+            <Link
               href="/admin/languages"
               className="hover:text-foreground/80 text-foreground transition-colors"
             >

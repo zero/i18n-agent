@@ -1,6 +1,6 @@
 import React from 'react';
 import Link from 'next/link';
-import { Languages, FileText, ArrowRight } from 'lucide-react';
+import { Languages, FileText, Bot, ArrowRight } from 'lucide-react';
 import {
   Card,
   CardContent,
@@ -18,7 +18,25 @@ export default function AdminPage() {
         <p className="text-muted-foreground">管理系统支持的语言和翻译内容</p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardHeader>
+            <div className="flex items-center space-x-2">
+              <Bot className="text-primary h-5 w-5" />
+              <CardTitle>AI 翻译助手</CardTitle>
+            </div>
+            <CardDescription>通过对话快速管理和创建 i18n 翻译</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Link href="/admin/chat">
+              <Button className="w-full">
+                开始对话
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+
         <Card>
           <CardHeader>
             <div className="flex items-center space-x-2">
