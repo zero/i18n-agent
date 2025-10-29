@@ -13,11 +13,13 @@ type Params = {
 };
 
 // GET /api/languages/[id] - 获取单个语言
+// 注意：[id] 参数现在实际上是语言代码（code）
 export async function GET(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    // id 参数实际上是语言代码
     const language = await prisma.language.findUnique({
-      where: { id },
+      where: { code: id },
       include: {
         _count: {
           select: { translations: true },
@@ -37,9 +39,11 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 // PUT /api/languages/[id] - 更新语言
+// 注意：[id] 参数现在实际上是语言代码（code）
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    // id 参数实际上是语言代码
     const body = await request.json();
     const validation = validateLanguageData(body);
 
@@ -49,7 +53,7 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     // 检查语言是否存在
     const existingLanguage = await prisma.language.findUnique({
-      where: { id },
+      where: { code: id },
     });
 
     if (!existingLanguage) {
@@ -65,9 +69,9 @@ export async function PUT(request: NextRequest, { params }: Params) {
     }
 
     const language = await prisma.language.update({
-      where: { id },
+      where: { code: id },
       data: {
-        code: body.code.trim(),
+        // code 不能更新（它是主键）
         name: body.name.trim(),
         isActive: body.isActive,
         isDefault: body.isDefault,
@@ -75,9 +79,10 @@ export async function PUT(request: NextRequest, { params }: Params) {
     });
 
     return successResponse(language, 'Language updated successfully');
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating language:', error);
-    if (error.code === 'P2002') {
+    const prismaError = error as { code?: string };
+    if (prismaError.code === 'P2002') {
       return badRequestResponse('Language code already exists');
     }
     return errorResponse('Failed to update language');
@@ -85,13 +90,15 @@ export async function PUT(request: NextRequest, { params }: Params) {
 }
 
 // DELETE /api/languages/[id] - 删除语言
+// 注意：[id] 参数现在实际上是语言代码（code）
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    // id 参数实际上是语言代码
 
     // 检查语言是否存在
     const language = await prisma.language.findUnique({
-      where: { id },
+      where: { code: id },
       include: {
         _count: {
           select: { translations: true },
@@ -109,11 +116,11 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     }
 
     await prisma.language.delete({
-      where: { id },
+      where: { code: id },
     });
 
     return successResponse(
-      { id },
+      { code: id },
       `Language deleted successfully (${language._count.translations} translations removed)`
     );
   } catch (error) {

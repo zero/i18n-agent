@@ -24,8 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
 type Language = {
-  id: string;
-  code: string;
+  code: string; // code 现在是主键
   name: string;
   isActive: boolean;
   isDefault: boolean;
@@ -83,11 +82,11 @@ export default function LanguagesPage() {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (code: string) => {
     if (!confirm('确定要删除这个语言吗？相关的翻译也会被删除。')) return;
 
     try {
-      const res = await fetch(`/api/languages/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/languages/${code}`, { method: 'DELETE' });
       const data = await res.json();
       if (data.success) {
         alert(data.message);
@@ -95,7 +94,8 @@ export default function LanguagesPage() {
       } else {
         alert(data.error);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Delete error:', err);
       alert('删除失败');
     }
   };
@@ -105,7 +105,7 @@ export default function LanguagesPage() {
 
     try {
       const url = editingLanguage
-        ? `/api/languages/${editingLanguage.id}`
+        ? `/api/languages/${editingLanguage.code}`
         : '/api/languages';
       const method = editingLanguage ? 'PUT' : 'POST';
 
@@ -123,7 +123,8 @@ export default function LanguagesPage() {
       } else {
         alert(data.error);
       }
-    } catch (error) {
+    } catch (err) {
+      console.error('Submit error:', err);
       alert('操作失败');
     }
   };
@@ -158,7 +159,7 @@ export default function LanguagesPage() {
           </TableHeader>
           <TableBody>
             {languages.map((language) => (
-              <TableRow key={language.id}>
+              <TableRow key={language.code}>
                 <TableCell className="font-mono">{language.code}</TableCell>
                 <TableCell>{language.name}</TableCell>
                 <TableCell>
@@ -192,7 +193,7 @@ export default function LanguagesPage() {
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => handleDelete(language.id)}
+                      onClick={() => handleDelete(language.code)}
                       disabled={language.isDefault}
                     >
                       <Trash2 className="h-4 w-4" />

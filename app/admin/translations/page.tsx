@@ -32,20 +32,23 @@ import {
 } from '@/components/ui/select';
 
 type Language = {
-  id: string;
-  code: string;
+  code: string; // code 是主键
   name: string;
 };
 
 type Translation = {
-  id: string;
-  key: string;
-  languageId: string;
+  key: string; // key 和 languageCode 组成复合主键
+  languageCode: string;
   value: string;
   createdAt: string;
   updatedAt: string;
   language: Language;
 };
+
+// 生成复合 ID (格式：key::languageCode)
+function makeCompositeId(key: string, languageCode: string): string {
+  return `${encodeURIComponent(key)}::${languageCode}`;
+}
 
 export default function TranslationsPage() {
   const [translations, setTranslations] = useState<Translation[]>([]);
@@ -55,10 +58,10 @@ export default function TranslationsPage() {
   const [editingTranslation, setEditingTranslation] =
     useState<Translation | null>(null);
   const [searchKey, setSearchKey] = useState('');
-  const [filterLanguageId, setFilterLanguageId] = useState<string>('all');
+  const [filterLanguageCode, setFilterLanguageCode] = useState<string>('all');
   const [formData, setFormData] = useState({
     key: '',
-    languageId: '',
+    languageCode: '',
     value: '',
   });
 
@@ -78,8 +81,8 @@ export default function TranslationsPage() {
     try {
       const params = new URLSearchParams();
       if (searchKey) params.append('key', searchKey);
-      if (filterLanguageId && filterLanguageId !== 'all') {
-        params.append('languageId', filterLanguageId);
+      if (filterLanguageCode && filterLanguageCode !== 'all') {
+        params.append('languageCode', filterLanguageCode);
       }
 
       const res = await fetch(`/api/translations?${params.toString()}`);
@@ -100,11 +103,11 @@ export default function TranslationsPage() {
 
   useEffect(() => {
     fetchTranslations();
-  }, [searchKey, filterLanguageId]);
+  }, [searchKey, filterLanguageCode]);
 
   const handleCreate = () => {
     setEditingTranslation(null);
-    setFormData({ key: '', languageId: '', value: '' });
+    setFormData({ key: '', languageCode: '', value: '' });
     setIsDialogOpen(true);
   };
 
@@ -112,17 +115,20 @@ export default function TranslationsPage() {
     setEditingTranslation(translation);
     setFormData({
       key: translation.key,
-      languageId: translation.languageId,
+      languageCode: translation.languageCode,
       value: translation.value,
     });
     setIsDialogOpen(true);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (key: string, languageCode: string) => {
     if (!confirm('确定要删除这条翻译吗？')) return;
 
     try {
-      const res = await fetch(`/api/translations/${id}`, { method: 'DELETE' });
+      const compositeId = makeCompositeId(key, languageCode);
+      const res = await fetch(`/api/translations/${compositeId}`, {
+        method: 'DELETE',
+      });
       const data = await res.json();
       if (data.success) {
         alert(data.message);
@@ -140,10 +146,20 @@ export default function TranslationsPage() {
     e.preventDefault();
 
     try {
-      const url = editingTranslation
-        ? `/api/translations/${editingTranslation.id}`
-        : '/api/translations';
-      const method = editingTranslation ? 'PUT' : 'POST';
+      let url, method;
+      if (editingTranslation) {
+        // 编辑模式：使用复合 ID
+        const compositeId = makeCompositeId(
+          editingTranslation.key,
+          editingTranslation.languageCode
+        );
+        url = `/api/translations/${compositeId}`;
+        method = 'PUT';
+      } else {
+        // 创建模式
+        url = '/api/translations';
+        method = 'POST';
+      }
 
       const res = await fetch(url, {
         method,
@@ -192,14 +208,17 @@ export default function TranslationsPage() {
             onChange={(e) => setSearchKey(e.target.value)}
           />
         </div>
-        <Select value={filterLanguageId} onValueChange={setFilterLanguageId}>
+        <Select
+          value={filterLanguageCode}
+          onValueChange={setFilterLanguageCode}
+        >
           <SelectTrigger className="w-[200px]">
             <SelectValue placeholder="筛选语言" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">所有语言</SelectItem>
             {languages.map((lang) => (
-              <SelectItem key={lang.id} value={lang.id}>
+              <SelectItem key={lang.code} value={lang.code}>
                 {lang.name} ({lang.code})
               </SelectItem>
             ))}
@@ -229,7 +248,12 @@ export default function TranslationsPage() {
               </TableRow>
             ) : (
               translations.map((translation) => (
-                <TableRow key={translation.id}>
+                <TableRow
+                  key={makeCompositeId(
+                    translation.key,
+                    translation.languageCode
+                  )}
+                >
                   <TableCell className="font-mono text-sm">
                     {translation.key}
                   </TableCell>
@@ -253,7 +277,12 @@ export default function TranslationsPage() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleDelete(translation.id)}
+                        onClick={() =>
+                          handleDelete(
+                            translation.key,
+                            translation.languageCode
+                          )
+                        }
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -293,10 +322,11 @@ export default function TranslationsPage() {
               <div className="grid gap-2">
                 <Label htmlFor="language">语言</Label>
                 <Select
-                  value={formData.languageId}
+                  value={formData.languageCode}
                   onValueChange={(value) =>
-                    setFormData({ ...formData, languageId: value })
+                    setFormData({ ...formData, languageCode: value })
                   }
+                  disabled={!!editingTranslation} // 编辑时不允许修改语言
                   required
                 >
                   <SelectTrigger>
@@ -304,7 +334,7 @@ export default function TranslationsPage() {
                   </SelectTrigger>
                   <SelectContent>
                     {languages.map((lang) => (
-                      <SelectItem key={lang.id} value={lang.id}>
+                      <SelectItem key={lang.code} value={lang.code}>
                         {lang.name} ({lang.code})
                       </SelectItem>
                     ))}

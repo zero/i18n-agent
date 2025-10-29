@@ -22,7 +22,6 @@ export const getLanguagesTool = new DynamicStructuredTool({
       return JSON.stringify({
         success: true,
         languages: languages.map((lang) => ({
-          id: lang.id,
           code: lang.code,
           name: lang.name,
           isDefault: lang.isDefault,
@@ -54,7 +53,6 @@ export const getDefaultLanguageTool = new DynamicStructuredTool({
       return JSON.stringify({
         success: true,
         language: {
-          id: defaultLanguage.id,
           code: defaultLanguage.code,
           name: defaultLanguage.name,
         },
@@ -99,8 +97,20 @@ export const createTranslationTool = new DynamicStructuredTool({
   }),
   func: async ({ key, languageId, value }) => {
     try {
+      // languageId 现在应该是 languageCode，但为了兼容，我们尝试找到对应的语言代码
+      const language = await prisma.language.findFirst({
+        where: { code: languageId },
+      });
+
+      if (!language) {
+        return JSON.stringify({
+          success: false,
+          error: `Language with code "${languageId}" not found`,
+        });
+      }
+
       const translation = await prisma.translation.create({
-        data: { key, languageId, value },
+        data: { key, languageCode: languageId, value },
         include: {
           language: {
             select: { code: true, name: true },
@@ -110,10 +120,9 @@ export const createTranslationTool = new DynamicStructuredTool({
       return JSON.stringify({
         success: true,
         translation: {
-          id: translation.id,
           key: translation.key,
           value: translation.value,
-          language: translation.language,
+          languageCode: translation.languageCode,
         },
       });
     } catch (error) {
@@ -139,21 +148,21 @@ export const createTranslationsBatchTool = new DynamicStructuredTool({
     translations: z
       .array(
         z.object({
-          languageId: z.string().describe('语言的 ID'),
+          languageCode: z.string().describe('语言代码，例如 en, zh-CN, ja'),
           value: z.string().describe('翻译后的文本内容'),
         })
       )
-      .describe('翻译列表，每个包含语言 ID 和翻译文本'),
+      .describe('翻译列表，每个包含语言代码和翻译文本'),
   }),
   func: async ({ key, translations }) => {
     try {
       const results = [];
       const errors = [];
 
-      for (const { languageId, value } of translations) {
+      for (const { languageCode, value } of translations) {
         try {
           const translation = await prisma.translation.create({
-            data: { key, languageId, value },
+            data: { key, languageCode, value },
             include: {
               language: {
                 select: { code: true, name: true },
@@ -168,7 +177,7 @@ export const createTranslationsBatchTool = new DynamicStructuredTool({
         } catch (error) {
           const prismaError = error as { code?: string; message?: string };
           errors.push({
-            languageId,
+            languageCode,
             error:
               prismaError.code === 'P2002'
                 ? 'Already exists'
@@ -180,6 +189,7 @@ export const createTranslationsBatchTool = new DynamicStructuredTool({
       return JSON.stringify({
         success: errors.length === 0,
         created: results.length,
+        count: results.length,
         results,
         errors: errors.length > 0 ? errors : undefined,
       });
@@ -189,34 +199,8 @@ export const createTranslationsBatchTool = new DynamicStructuredTool({
   },
 });
 
-// 工具 6: 翻译文本到目标语言（使用 LLM）
-export const translateTextTool = new DynamicStructuredTool({
-  name: 'translate_text',
-  description:
-    '将文本从源语言翻译到目标语言。这是一个 AI 翻译工具，会调用 LLM 进行翻译',
-  schema: z.object({
-    text: z.string().describe('要翻译的文本'),
-    sourceLanguage: z
-      .string()
-      .describe('源语言名称或代码，例如：English, zh-CN'),
-    targetLanguage: z
-      .string()
-      .describe('目标语言名称或代码，例如：简体中文，ja'),
-  }),
-  func: async ({ text, sourceLanguage, targetLanguage }) => {
-    try {
-      // 这里使用简单的提示来让 LLM 翻译
-      // 实际调用会在 Agent 执行时由 LLM 完成
-      return JSON.stringify({
-        success: true,
-        translatedText: `[请将"${text}"从${sourceLanguage}翻译为${targetLanguage}，只返回翻译结果，不要其他内容]`,
-        note: 'This is a placeholder. The actual translation will be done by the LLM.',
-      });
-    } catch (error) {
-      return JSON.stringify({ success: false, error: String(error) });
-    }
-  },
-});
+// 注意：我们不需要单独的 translate_text 工具
+// LLM 本身就具备翻译能力，直接在生成翻译内容时使用即可
 
 // 工具 7: 获取现有翻译
 export const getTranslationsTool = new DynamicStructuredTool({
@@ -255,8 +239,9 @@ export const allTools = [
   getLanguagesTool,
   getDefaultLanguageTool,
   checkTranslationExistsTool,
-  createTranslationTool,
-  createTranslationsBatchTool,
-  translateTextTool,
   getTranslationsTool,
+  createTranslationsBatchTool,
+  // 注意：createTranslationTool 通常不需要，因为我们使用批量创建
+  // 但保留它以备单独创建翻译的场景
+  createTranslationTool,
 ];

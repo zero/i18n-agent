@@ -11,13 +11,14 @@ import { validateTranslationData } from '@/lib/validation';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const languageId = searchParams.get('languageId');
+    const languageCode =
+      searchParams.get('languageCode') || searchParams.get('languageId'); // 兼容旧参数名
     const key = searchParams.get('key');
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '50');
 
-    const where: any = {};
-    if (languageId) where.languageId = languageId;
+    const where: { languageCode?: string; key?: { contains: string } } = {};
+    if (languageCode) where.languageCode = languageCode;
     if (key) where.key = { contains: key };
 
     const [translations, total] = await Promise.all([
@@ -26,13 +27,12 @@ export async function GET(request: NextRequest) {
         include: {
           language: {
             select: {
-              id: true,
               code: true,
               name: true,
             },
           },
         },
-        orderBy: [{ key: 'asc' }, { languageId: 'asc' }],
+        orderBy: [{ key: 'asc' }, { languageCode: 'asc' }],
         skip: (page - 1) * limit,
         take: limit,
       }),
@@ -64,9 +64,15 @@ export async function POST(request: NextRequest) {
       return badRequestResponse(validation.errors.join(', '));
     }
 
+    // 兼容旧字段名
+    const languageCode = body.languageCode || body.languageId;
+    if (!languageCode) {
+      return badRequestResponse('languageCode is required');
+    }
+
     // 验证语言是否存在
     const language = await prisma.language.findUnique({
-      where: { id: body.languageId },
+      where: { code: languageCode },
     });
 
     if (!language) {
@@ -76,13 +82,12 @@ export async function POST(request: NextRequest) {
     const translation = await prisma.translation.create({
       data: {
         key: body.key.trim(),
-        languageId: body.languageId,
+        languageCode: languageCode,
         value: body.value,
       },
       include: {
         language: {
           select: {
-            id: true,
             code: true,
             name: true,
           },
@@ -91,9 +96,10 @@ export async function POST(request: NextRequest) {
     });
 
     return successResponse(translation, 'Translation created successfully');
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error creating translation:', error);
-    if (error.code === 'P2002') {
+    const prismaError = error as { code?: string };
+    if (prismaError.code === 'P2002') {
       return badRequestResponse(
         'Translation with this key and language already exists'
       );

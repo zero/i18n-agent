@@ -12,16 +12,40 @@ type Params = {
   params: Promise<{ id: string }>;
 };
 
+// 解析复合 ID (格式：key::languageCode)
+function parseCompositeId(
+  id: string
+): { key: string; languageCode: string } | null {
+  const parts = id.split('::');
+  if (parts.length !== 2) {
+    return null;
+  }
+  return { key: decodeURIComponent(parts[0]), languageCode: parts[1] };
+}
+
 // GET /api/translations/[id] - 获取单个翻译
+// 注意：id 格式为 key::languageCode (例如：common.welcome::en)
 export async function GET(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const parsed = parseCompositeId(id);
+
+    if (!parsed) {
+      return badRequestResponse(
+        'Invalid translation ID format. Expected: key::languageCode'
+      );
+    }
+
     const translation = await prisma.translation.findUnique({
-      where: { id },
+      where: {
+        languageCode_key: {
+          languageCode: parsed.languageCode,
+          key: parsed.key,
+        },
+      },
       include: {
         language: {
           select: {
-            id: true,
             code: true,
             name: true,
           },
@@ -41,9 +65,18 @@ export async function GET(request: NextRequest, { params }: Params) {
 }
 
 // PUT /api/translations/[id] - 更新翻译
+// 注意：id 格式为 key::languageCode，且 key 和 languageCode 不可更改（它们是主键）
 export async function PUT(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const parsed = parseCompositeId(id);
+
+    if (!parsed) {
+      return badRequestResponse(
+        'Invalid translation ID format. Expected: key::languageCode'
+      );
+    }
+
     const body = await request.json();
     const validation = validateTranslationData(body);
 
@@ -53,33 +86,32 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     // 检查翻译是否存在
     const existingTranslation = await prisma.translation.findUnique({
-      where: { id },
+      where: {
+        languageCode_key: {
+          languageCode: parsed.languageCode,
+          key: parsed.key,
+        },
+      },
     });
 
     if (!existingTranslation) {
       return notFoundResponse('Translation not found');
     }
 
-    // 验证语言是否存在
-    const language = await prisma.language.findUnique({
-      where: { id: body.languageId },
-    });
-
-    if (!language) {
-      return badRequestResponse('Language not found');
-    }
-
+    // 只允许更新 value 字段（key 和 languageCode 是主键，不可更改）
     const translation = await prisma.translation.update({
-      where: { id },
+      where: {
+        languageCode_key: {
+          languageCode: parsed.languageCode,
+          key: parsed.key,
+        },
+      },
       data: {
-        key: body.key.trim(),
-        languageId: body.languageId,
         value: body.value,
       },
       include: {
         language: {
           select: {
-            id: true,
             code: true,
             name: true,
           },
@@ -88,25 +120,33 @@ export async function PUT(request: NextRequest, { params }: Params) {
     });
 
     return successResponse(translation, 'Translation updated successfully');
-  } catch (error: any) {
+  } catch (error) {
     console.error('Error updating translation:', error);
-    if (error.code === 'P2002') {
-      return badRequestResponse(
-        'Translation with this key and language already exists'
-      );
-    }
     return errorResponse('Failed to update translation');
   }
 }
 
 // DELETE /api/translations/[id] - 删除翻译
+// 注意：id 格式为 key::languageCode
 export async function DELETE(request: NextRequest, { params }: Params) {
   try {
     const { id } = await params;
+    const parsed = parseCompositeId(id);
+
+    if (!parsed) {
+      return badRequestResponse(
+        'Invalid translation ID format. Expected: key::languageCode'
+      );
+    }
 
     // 检查翻译是否存在
     const translation = await prisma.translation.findUnique({
-      where: { id },
+      where: {
+        languageCode_key: {
+          languageCode: parsed.languageCode,
+          key: parsed.key,
+        },
+      },
     });
 
     if (!translation) {
@@ -114,10 +154,18 @@ export async function DELETE(request: NextRequest, { params }: Params) {
     }
 
     await prisma.translation.delete({
-      where: { id },
+      where: {
+        languageCode_key: {
+          languageCode: parsed.languageCode,
+          key: parsed.key,
+        },
+      },
     });
 
-    return successResponse({ id }, 'Translation deleted successfully');
+    return successResponse(
+      { key: parsed.key, languageCode: parsed.languageCode },
+      'Translation deleted successfully'
+    );
   } catch (error) {
     console.error('Error deleting translation:', error);
     return errorResponse('Failed to delete translation');
